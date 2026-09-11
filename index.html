@@ -130,7 +130,7 @@ function showTab(id,btn){document.querySelectorAll(".panel").forEach(x=>x.classL
 function renderWeek(){
 const options='<option value="">— Gericht wählen —</option>'+dishes.map((d,i)=>`<option value="${i}">${d[0]} · ${d[1]} kcal · Score ${score(d)}</option>`).join("");
 document.getElementById("week").innerHTML=days.map((day,i)=>`<div class="row"><strong>${day}</strong><select onchange="week[${i}]=this.value===''?null:Number(this.value);save();renderWeek()">${options.replace(`value="${week[i]}"`,`value="${week[i]}" selected`)}</select></div>`).join("");
-const ids=week.filter(x=>x!==null), kcal=ids.reduce((s,i)=>s+dishes[i][1],0), sc=ids.reduce((s,i)=>s+score(dishes[i]),0), bud=(settings.daily-settings.deficit)*7;
+const ids=week.filter(x=>x!==null), kcal=ids.reduce((s,i)=>s+dishes[i][1],0), sc=ids.reduce((s,i)=>s+score(dishes[i]),0), bud=(settings.daily-settings.deficit)*7*0,5;
 document.getElementById("wkcal").textContent=kcal.toLocaleString("de-DE")+" kcal";document.getElementById("wscore").textContent=sc;
 document.getElementById("budget").textContent=Math.max(0,bud).toLocaleString("de-DE");
 const ratio=bud?Math.min(1,kcal/bud):0;document.getElementById("bar").style.width=(ratio*100)+"%";
