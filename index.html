@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#222222">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Yannicks Essen">
+<title>Yannicks Essensplaner</title>
+<style>
+*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;background:#f4f5f7;color:#202124}
+header{background:#fff;padding:20px;position:sticky;top:0;z-index:5;border-bottom:1px solid #ddd}
+main{max-width:1050px;margin:auto;padding:16px}.tabs{display:flex;gap:8px;overflow:auto;margin-bottom:16px}
+.tab{background:#ddd;color:#222}.tab.active{background:#222;color:#fff}
+.panel{display:none}.panel.active{display:block}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:11px}
+.card{background:#fff;border-radius:15px;padding:15px;box-shadow:0 1px 4px #0001}
+.card label{display:flex;gap:11px;cursor:pointer}.card input{width:20px;height:20px;margin-top:2px}
+.badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}.badge{font-size:12px;padding:4px 7px;border-radius:99px;background:#eee}.green{background:#dff3df}.yellow{background:#fff0c7}.red{background:#ffdede}
+.kcal{font-weight:600}.muted{color:#6b6b6b}.controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+button{border:0;border-radius:10px;padding:10px 13px;font:inherit;background:#222;color:#fff}button.secondary{background:#ddd;color:#222}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}.stat{background:#fff;border-radius:14px;padding:14px}.big{font-size:24px;font-weight:700}
+.progress{height:13px;background:#ddd;border-radius:99px;overflow:hidden;margin:8px 0}.bar{height:100%;background:#222;width:0}
+.row{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid #ddd}
+input[type=number],select{padding:9px;border:1px solid #ccc;border-radius:9px;font:inherit;width:100%}
+.formgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.shopping{background:#fff;border-radius:14px;padding:15px}.group{margin-bottom:18px}.group h3{margin-bottom:5px}
+@media print{header,.tabs,.controls,.settings{display:none!important}.panel{display:none}.printonly{display:block}.shopping{box-shadow:none}}
+</style>
+</head>
+<body>
+<header>
+<h1 style="margin:0 0 4px">🥗 Yannicks Essensplaner</h1>
+<div class="muted">Wochenplan · Kalorienbudget · Gesundheits-Score · Einkaufsliste</div>
+</header>
+<main>
+<div class="tabs">
+<button class="tab active" onclick="showTab('gerichte',this)">Gerichte</button>
+<button class="tab" onclick="showTab('woche',this)">Wochenplan</button>
+<button class="tab" onclick="showTab('einkauf',this)">Einkaufsliste</button>
+<button class="tab" onclick="showTab('einstellungen',this)">Einstellungen</button>
+</div>
+
+<section id="gerichte" class="panel active">
+<div class="controls"><button onclick="selectAll()">Alle auswählen</button><button class="secondary" onclick="clearAll()">Auswahl löschen</button></div>
+<div id="dishes" class="grid"></div>
+</section>
+
+<section id="woche" class="panel">
+<h2>Deine Woche</h2>
+<p class="muted">Wähle pro Tag ein Gericht. Der Score dient als einfache Steuerung des Wochenbudgets – er ersetzt keine individuelle Ernährungsberatung.</p>
+<div id="week"></div>
+<div class="stats">
+<div class="stat"><div class="muted">Wochenkalorien</div><div class="big" id="wkcal">0</div></div>
+<div class="stat"><div class="muted">Wochen-Score</div><div class="big" id="wscore">0</div></div>
+<div class="stat"><div class="muted">Budget</div><div class="big" id="budget">0</div></div>
+<div class="stat"><div class="muted">Status</div><div class="big" id="status">—</div></div>
+</div>
+<div class="progress"><div id="bar" class="bar"></div></div>
+<div id="advice" class="card"></div>
+</section>
+
+<section id="einkauf" class="panel">
+<h2>🛒 Einkaufsliste</h2>
+<div class="controls"><button onclick="window.print()">Drucken / als PDF sichern</button><button class="secondary" onclick="clearShopping()">Liste zurücksetzen</button></div>
+<div id="shopping" class="shopping"></div>
+</section>
+
+<section id="einstellungen" class="panel">
+<h2>⚙️ Wochenziel</h2>
+<div class="card settings">
+<p>Der Score wird aus Kalorien und einer Gesundheitsbewertung berechnet. Die Kalorien-Zielgröße kannst du selbst festlegen.</p>
+<div class="formgrid">
+<div><label>Kalorienbudget pro Tag<input id="daily" type="number" min="1000" max="5000" step="50"></label></div>
+<div><label>Gewünschtes Defizit<input id="deficit" type="number" min="0" max="1000" step="50"></label></div>
+<div><label>Personen<input id="people" type="number" min="1" max="10" step="1"></label></div>
+</div>
+<p><button onclick="saveSettings()">Einstellungen speichern</button></p>
+</div>
+</section>
+</main>
+
+<script>
+const dishes=[
+["Hähnchen-Reis-Pfanne",620,48,9,"Hähnchen, Reis, Paprika, Zucchini, Karotte, Zwiebel","500 g Hähnchen;250 g Reis;2 Paprika;1 Zucchini;2 Karotten;1 Zwiebel;Sojasauce"],
+["Tortellini-Rucola-Tomaten",680,25,7,"Tortellini, Rucola, Tomaten, Feta, getrocknete Tomaten","500 g Tortellini;100 g Rucola;300 g Tomaten;100 g Feta;50 g getrocknete Tomaten"],
+["Kartoffeln mit Quark",480,34,10,"Kartoffeln, Magerquark, Gurke, Kräuter","1 kg Kartoffeln;500 g Magerquark;1 Gurke;Schnittlauch;Petersilie"],
+["Salat mit Hähnchenstreifen",500,48,10,"Blattsalat, Hähnchen, Tomaten, Gurke, Mais, Joghurt-Dressing","1 Salatkopf;400 g Hähnchen;250 g Tomaten;1 Gurke;150 g Mais;150 g Naturjoghurt"],
+["Gemüsepfanne mit Reis",560,20,10,"Reis, Brokkoli, Paprika, Zucchini, Karotte, Erbsen","250 g Reis;300 g Brokkoli;2 Paprika;1 Zucchini;2 Karotten;150 g Erbsen"],
+["Wraps mit Like Chicken & Avocado",650,35,8,"Wraps, Like Chicken, Avocado, Salat, Tomaten, Joghurt","6 Wraps;300 g Like Chicken;2 Avocados;1 Salat;250 g Tomaten;150 g Joghurt"],
+["Süß-Sauer-Gemüse mit Reis",540,15,9,"Reis, Paprika, Ananas, Karotte, Zwiebel, Tomaten","250 g Reis;2 Paprika;1 kleine Dose Ananas;2 Karotten;1 Zwiebel;500 ml passierte Tomaten"],
+["Nussgericht von Yannick",600,18,8,"Nüsse, Reis, Gemüse, Joghurt","100 g Nussmix;250 g Reis;400 g Gemüse;150 g Joghurt"],
+["Spaghetti Bolognese",650,40,8,"Spaghetti, mageres Hack, Tomaten, Karotte, Zwiebel","250 g Spaghetti;400 g mageres Hack;500 g gehackte Tomaten;2 Karotten;1 Zwiebel"],
+["Couscous-Salat",520,20,10,"Couscous, Gurke, Tomate, Paprika, Feta, Petersilie","250 g Couscous;1 Gurke;300 g Tomaten;1 Paprika;100 g Feta;Petersilie"],
+["Fischstäbchen mit Kartoffeln & Gemüse",610,28,8,"Fischstäbchen, Kartoffeln, Erbsen, Möhren","12 Fischstäbchen;800 g Kartoffeln;250 g Erbsen;2 Karotten"],
+["Brokkoli-Bandnudeln-Käsesoße",650,24,8,"Bandnudeln, Brokkoli, Frischkäse light, Parmesan","250 g Bandnudeln;400 g Brokkoli;150 g Frischkäse light;30 g Parmesan"],
+["Gemüsesuppe",390,13,10,"Kartoffeln, Karotten, Lauch, Sellerie, Brühe","500 g Kartoffeln;3 Karotten;1 Lauchstange;150 g Sellerie;1 l Gemüsebrühe"],
+["Spätzle-Gemüse-Pfanne",610,25,8,"Spätzle, Champignons, Paprika, Zucchini, Frischkäse light","500 g Spätzle;250 g Champignons;1 Paprika;1 Zucchini;150 g Frischkäse light"],
+["Linsen mit Spätzle",650,30,9,"Linsen, Spätzle, Karotten, Sellerie, Zwiebel","300 g Linsen;500 g Spätzle;2 Karotten;150 g Sellerie;1 Zwiebel"],
+["Bohnen-Nudel-Pfanne",560,23,9,"Nudeln, Kidneybohnen, Tomaten, Mais, Paprika","250 g Nudeln;1 Dose Kidneybohnen;500 g Tomaten;150 g Mais;1 Paprika"],
+["Chili con Carne mit Reis",650,42,9,"mageres Hack, Kidneybohnen, Mais, Tomaten, Reis","400 g mageres Hack;2 Dosen Kidneybohnen;150 g Mais;500 g Tomaten;250 g Reis"],
+["Spinatauflauf",590,34,9,"Blattspinat, Kartoffeln, Eier, Frischkäse light, Käse","600 g Blattspinat;600 g Kartoffeln;4 Eier;150 g Frischkäse light;80 g geriebener Käse"],
+["Selbstgemachte Pizza",720,30,7,"Pizzateig, Tomatensoße, Mozzarella light, Gemüse, Schinken","1 Pizzateig;250 ml Tomatensoße;125 g Mozzarella light;1 Paprika;150 g Champignons;100 g Kochschinken"],
+["Sauerkraut mit Kartoffeln",480,18,9,"Sauerkraut, Kartoffeln, magerer Schinken","500 g Sauerkraut;800 g Kartoffeln;150 g magerer Schinken"],
+["Rotkohl mit Kartoffeln",430,10,9,"Rotkohl, Kartoffeln, Apfel","500 g Rotkohl;800 g Kartoffeln;1 Apfel"],
+["Pfannkuchen mit Pilzen",560,25,8,"Mehl, Eier, Milch, Champignons, Frischkäse light","150 g Mehl;3 Eier;300 ml Milch;300 g Champignons;150 g Frischkäse light"],
+["Apfelküchle",430,9,7,"Äpfel, Mehl, Eier, Milch, Zimt","3 Äpfel;120 g Mehl;2 Eier;150 ml Milch;Zimt"],
+["Kürbissuppe",400,10,10,"Hokkaido, Kartoffeln, Karotten, Brühe, Frischkäse light","1 Hokkaido;300 g Kartoffeln;2 Karotten;1 l Gemüsebrühe;100 g Frischkäse light"],
+["Spargel-Kartoffel-Pfanne",500,27,10,"Spargel, Kartoffeln, Eier, Schinken, Joghurt","500 g Spargel;700 g Kartoffeln;3 Eier;100 g Kochschinken;150 g Joghurt"],
+["Milchreis mit Apfel",540,15,7,"Milchreis, Milch, Äpfel, Zimt","250 g Milchreis;1 l Milch;2 Äpfel;Zimt"],
+["Apfelmus mit Werchele",550,12,6,"Apfelmus, Werchele, Joghurt","500 g Apfelmus;300 g Werchele;250 g Naturjoghurt"],
+["Hähnchen-Curry mit Gemüse",610,45,9,"Hähnchen, Reis, Paprika, Brokkoli, Kokosmilch light, Curry","400 g Hähnchen;250 g Reis;1 Paprika;300 g Brokkoli;250 ml Kokosmilch light;Currypulver"]
+];
+// score: lower is better. Calories are per listed serving estimate; health 6-10. Score is transparent, not a medical metric.
+function score(d){return Math.round(d[1]/100 + (10-d[3])*3 - Math.min(d[2],50)/10)}
+let settings=JSON.parse(localStorage.getItem("settings")||'{"daily":2000,"deficit":300,"people":2}');
+let chosen=new Set(JSON.parse(localStorage.getItem("chosen")||"[]"));
+let week=JSON.parse(localStorage.getItem("week")||"[null,null,null,null,null,null,null]");
+const days=["Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Sonntag"];
+function save(){localStorage.setItem("chosen",JSON.stringify([...chosen]));localStorage.setItem("week",JSON.stringify(week));}
+function renderDishes(){
+document.getElementById("dishes").innerHTML=dishes.map((d,i)=>`<div class="card"><label><input type="checkbox" ${chosen.has(i)?"checked":""} onchange="toggle(${i})"><div><strong>${d[0]}</strong><div class="muted">${d[4]}</div><div class="badges"><span class="badge kcal">${d[1]} kcal</span><span class="badge">Protein ${d[2]} g</span><span class="badge ${d[3]>=9?"green":d[3]>=8?"yellow":"red"}">Gesundheit ${d[3]}/10</span><span class="badge">Score ${score(d)}</span></div></div></label></div>`).join("");
+}
+function toggle(i){chosen.has(i)?chosen.delete(i):chosen.add(i);save();renderDishes();renderShopping();}
+function selectAll(){dishes.forEach((_,i)=>chosen.add(i));save();renderDishes();}
+function clearAll(){chosen.clear();save();renderDishes();}
+function showTab(id,btn){document.querySelectorAll(".panel").forEach(x=>x.classList.remove("active"));document.getElementById(id).classList.add("active");document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));btn.classList.add("active");if(id==="woche")renderWeek();if(id==="einkauf")renderShopping();}
+function renderWeek(){
+const options='<option value="">— Gericht wählen —</option>'+dishes.map((d,i)=>`<option value="${i}">${d[0]} · ${d[1]} kcal · Score ${score(d)}</option>`).join("");
+document.getElementById("week").innerHTML=days.map((day,i)=>`<div class="row"><strong>${day}</strong><select onchange="week[${i}]=this.value===''?null:Number(this.value);save();renderWeek()">${options.replace(`value="${week[i]}"`,`value="${week[i]}" selected`)}</select></div>`).join("");
+const ids=week.filter(x=>x!==null), kcal=ids.reduce((s,i)=>s+dishes[i][1],0), sc=ids.reduce((s,i)=>s+score(dishes[i]),0), bud=(settings.daily-settings.deficit)*7;
+document.getElementById("wkcal").textContent=kcal.toLocaleString("de-DE")+" kcal";document.getElementById("wscore").textContent=sc;
+document.getElementById("budget").textContent=Math.max(0,bud).toLocaleString("de-DE");
+const ratio=bud?Math.min(1,kcal/bud):0;document.getElementById("bar").style.width=(ratio*100)+"%";
+document.getElementById("status").textContent=ids.length<7?"unvollständig":kcal<=bud?"✓ im Budget":"⚠ über Budget";
+document.getElementById("advice").innerHTML=ids.length<7?"Wähle für alle 7 Tage ein Gericht, um die Woche zu bewerten.":kcal<=bud?`Deine geplanten Gerichte liegen ${Math.max(0,bud-kcal).toLocaleString("de-DE")} kcal unter dem Wochenbudget. Der Score ist zusätzlich eine Qualitätsorientierung.`:`Die Auswahl liegt ${ (kcal-bud).toLocaleString("de-DE")} kcal über dem Wochenbudget. Tausche zunächst ein kalorienreiches Gericht gegen eine leichtere Option.`;
+}
+function saveSettings(){
+settings.daily=Number(document.getElementById("daily").value)||2000;settings.deficit=Number(document.getElementById("deficit").value)||0;settings.people=Number(document.getElementById("people").value)||2;
+localStorage.setItem("settings",JSON.stringify(settings));renderWeek();alert("Einstellungen gespeichert.");
+}
+function renderShopping(){
+const ids=[...week.filter(x=>x!==null),...([...chosen])];const map={};
+ids.forEach(i=>dishes[i][5].split(";").forEach(x=>{let parts=x.trim().split(" ");let q=parts.shift(),n=parts.join(" ");if(!map[n])map[n]=[];map[n].push(q)}));
+if(!ids.length){document.getElementById("shopping").innerHTML="<div class='muted'>Noch keine Gerichte ausgewählt.</div>";return;}
+const groups={ "Obst & Gemüse":[], "Kühlregal":[], "Fleisch, Fisch & Alternativen":[], "Trockenwaren & Konserven":[], "Sonstiges":[]};
+const kw={Karotte:"Obst & Gemüse",Karotten:"Obst & Gemüse",Paprika:"Obst & Gemüse",Zucchini:"Obst & Gemüse",Brokkoli:"Obst & Gemüse",Tomaten:"Obst & Gemüse",Gurke:"Obst & Gemüse",Kartoffeln:"Obst & Gemüse",Zwiebel:"Obst & Gemüse",Apfel:"Obst & Gemüse",Äpfel:"Obst & Gemüse",Spargel:"Obst & Gemüse",Kürbis:"Obst & Gemüse",Hokkaido:"Obst & Gemüse",Rucola:"Obst & Gemüse",Salat:"Obst & Gemüse",Champignons:"Obst & Gemüse",Lauch:"Obst & Gemüse",Sellerie:"Obst & Gemüse",Petersilie:"Obst & Gemüse",Schnittlauch:"Obst & Gemüse",Spinat:"Obst & Gemüse",Blattspinat:"Obst & Gemüse",Hähnchen:"Fleisch, Fisch & Alternativen",Hack:"Fleisch, Fisch & Alternativen",Kochschinken:"Fleisch, Fisch & Alternativen",Fischstäbchen:"Fleisch, Fisch & Alternativen",Like:"Fleisch, Fisch & Alternativen",Joghurt:"Kühlregal",Magerquark:"Kühlregal",Feta:"Kühlregal",Mozzarella:"Kühlregal",Frischkäse:"Kühlregal",Parmesan:"Kühlregal",Käse:"Kühlregal",Milch:"Kühlregal",Eier:"Kühlregal",Reis:"Trockenwaren & Konserven",Nudeln:"Trockenwaren & Konserven",Spaghetti:"Trockenwaren & Konserven",Bandnudeln:"Trockenwaren & Konserven",Couscous:"Trockenwaren & Konserven",Spätzle:"Trockenwaren & Konserven",Linsen:"Trockenwaren & Konserven",Kidneybohnen:"Trockenwaren & Konserven",Mais:"Trockenwaren & Konserven",Tortellini:"Trockenwaren & Konserven",Mehl:"Trockenwaren & Konserven",Wraps:"Trockenwaren & Konserven"};
+Object.entries(map).forEach(([n,q])=>{let key=Object.keys(kw).find(k=>n.includes(k));(groups[kw[key]||"Sonstiges"]).push(`<div class="row"><span>☐ ${n}</span><strong>${q.join(" + ")}</strong></div>`)});
+document.getElementById("shopping").innerHTML=Object.entries(groups).filter(x=>x[1].length).map(([g,items])=>`<div class="group"><h3>${g}</h3>${items.join("")}</div>`).join("");
+}
+function clearShopping(){chosen.clear();week=[null,null,null,null,null,null,null];save();renderDishes();renderShopping();renderWeek();}
+document.getElementById("daily").value=settings.daily;document.getElementById("deficit").value=settings.deficit;document.getElementById("people").value=settings.people;
+renderDishes();renderShopping();renderWeek();
+</script>
+<script>
+if ("serviceWorker" in navigator) window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js"));
+</script>
+</body></html>
